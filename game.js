@@ -377,10 +377,11 @@ document.addEventListener('DOMContentLoaded', () => {
         event.preventDefault();
         const touch = event.touches[0];
         const rect = canvas.getBoundingClientRect();
-        const x = touch.clientX - rect.left;
-        const y = touch.clientY - rect.top;
+        const scale = canvas.width / (VISIBLE_TILES * TILE_SIZE);
+        const x = (touch.clientX - rect.left) / scale;
+        const y = (touch.clientY - rect.top) / scale;
         const tileX = Math.floor(x / TILE_SIZE);
-        const tileY = Math.floor(y / TILE_SIZE);
+        const tileY = Math.floor((y - JEWEL_BAR_HEIGHT) / TILE_SIZE);
 
         for (const [direction, area] of Object.entries(touchAreas)) {
             if (tileX >= area.x && tileX < area.x + area.width &&
@@ -471,11 +472,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         ctx.restore();
 
-        // Piirrä kerätyt jalokivet alapalkkiin
+        /// Piirrä kerätyt jalokivet alapalkkiin
         const jewelSize = TILE_SIZE / 2;
         const jewelMargin = 5;
-        const jewelBarStartX = (canvas.width - (jewelPositions.length * (jewelSize + jewelMargin) - jewelMargin)) / 2;
-        const jewelBarStartY = canvas.height - JEWEL_BAR_HEIGHT / 2 - jewelSize / 2;
+        const jewelBarStartX = (VISIBLE_SIZE - (jewelPositions.length * (jewelSize + jewelMargin) - jewelMargin)) / 2;
+        const jewelBarStartY = VISIBLE_SIZE + JEWEL_BAR_HEIGHT / 2 - jewelSize / 2;
 
         jewelPositions.forEach((jewel, index) => {
             if (collectedJewels[index]) {

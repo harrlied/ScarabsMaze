@@ -11,8 +11,29 @@ document.addEventListener('DOMContentLoaded', () => {
     const VISIBLE_SIZE = VISIBLE_TILES * TILE_SIZE;
 
     const JEWEL_BAR_HEIGHT = 60;
-    canvas.width = VISIBLE_SIZE;
-    canvas.height = VISIBLE_SIZE + 2 * JEWEL_BAR_HEIGHT;
+
+    // Function to resize the canvas based on the screen size
+    function resizeCanvas() {
+        const scale = Math.min(window.innerWidth / (VISIBLE_TILES * TILE_SIZE), window.innerHeight / (VISIBLE_TILES * TILE_SIZE + 2 * JEWEL_BAR_HEIGHT));
+        canvas.width = VISIBLE_TILES * TILE_SIZE * scale;
+        canvas.height = (VISIBLE_TILES * TILE_SIZE + 2 * JEWEL_BAR_HEIGHT) * scale;
+        canvas.style.width = `${canvas.width}px`;
+        canvas.style.height = `${canvas.height}px`;
+        ctx.scale(scale, scale);
+    }
+
+    // Initial resize
+    resizeCanvas();
+
+    // Resize canvas when window is resized
+    window.addEventListener('resize', resizeCanvas);
+
+
+
+
+
+    // canvas.width = VISIBLE_SIZE;
+    // canvas.height = VISIBLE_SIZE + 2 * JEWEL_BAR_HEIGHT;
 
 
     const jewelImages = [];

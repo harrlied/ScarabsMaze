@@ -8,14 +8,14 @@ body {
     background-color: #1e0303;
 }
 
-#gameCanvas {
+/* #gameCanvas {
     border: 1px solid #000;
     background-image: url('images/background.png');
     background-size: cover;
     background-position: center;
     width: 900px;
     height: 900px;
-}
+} */
 
 #gameContainer {
     width: 900px;

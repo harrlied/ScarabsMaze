@@ -1,15 +1,3 @@
-
-const jewelImages = [];
-for (let i = 1; i <= 12; i++) {
-    const img = new Image();
-    img.src = `images/jewel_${i.toString().padStart(2, '0')}.png`;
-    jewelImages.push(img);
-}
-
-
-
-
-
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
@@ -19,10 +7,8 @@ const TILE_SIZE = 100;
 const VISIBLE_TILES = 7;
 const VISIBLE_SIZE = VISIBLE_TILES * TILE_SIZE;
 
-
-const JEWEL_BAR_HEIGHT = 60;
 canvas.width = VISIBLE_SIZE;
-canvas.height = VISIBLE_SIZE + 2 * JEWEL_BAR_HEIGHT;
+canvas.height = VISIBLE_SIZE;
 
 let gameArea = [];
 // let jewelPositions = [];
@@ -31,8 +17,6 @@ let gameArea = [];
 let playerX = GAME_SIZE / 2 + TILE_SIZE * 2; // Keskimmäisen lohkon keskikohta
 let playerY = GAME_SIZE / 2 + TILE_SIZE * 2;
 let isMoving = false;
-
-let collectedJewels = new Array(jewelImages.length).fill(false);
 
 // Tetris-palikoiden muodot (7 erilaista)
 const tetrisPieces = [
@@ -162,11 +146,17 @@ for (let i = 0; i <= 17; i++) {
 images['start'] = new Image();
 images['start'].src = 'images/start_screen.png';
 
+
+
 const playerImage = new Image();
 playerImage.src = 'images/turtle_01.png';
 
-const jewelBarImage = new Image();
-jewelBarImage.src = 'images/jewel_bar.png';
+const jewelImages = [];
+for (let i = 1; i <= 12; i++) {
+    const img = new Image();
+    img.src = `images/jewel_${i.toString().padStart(2, '0')}.png`;
+    jewelImages.push(img);
+}
 
 const monsterImages = [];
 for (let i = 1; i <= 6; i++) {
@@ -345,23 +335,13 @@ function drawGame() {
     ctx.fillStyle = '#222';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Piirrä yläpalkki
-    ctx.drawImage(jewelBarImage, 0, 0);
-
-    // Piirrä alapalkki
-    ctx.drawImage(jewelBarImage, 0, canvas.height - JEWEL_BAR_HEIGHT);
-
-    // Piirrä pelialue
-    ctx.save();
-    ctx.translate(0, JEWEL_BAR_HEIGHT);
-
-    let viewportStartX = Math.floor(playerX / TILE_SIZE) - Math.floor(VISIBLE_TILES / 2);
-    let viewportStartY = Math.floor(playerY / TILE_SIZE) - Math.floor(VISIBLE_TILES / 2);
+    let startX = Math.floor(playerX / TILE_SIZE) - Math.floor(VISIBLE_TILES / 2);
+    let startY = Math.floor(playerY / TILE_SIZE) - Math.floor(VISIBLE_TILES / 2);
 
     for (let y = 0; y < VISIBLE_TILES; y++) {
         for (let x = 0; x < VISIBLE_TILES; x++) {
-            let tileX = (viewportStartX + x + GAME_SIZE / TILE_SIZE) % (GAME_SIZE / TILE_SIZE);
-            let tileY = (viewportStartY + y + GAME_SIZE / TILE_SIZE) % (GAME_SIZE / TILE_SIZE);
+            let tileX = (startX + x + GAME_SIZE / TILE_SIZE) % (GAME_SIZE / TILE_SIZE);
+            let tileY = (startY + y + GAME_SIZE / TILE_SIZE) % (GAME_SIZE / TILE_SIZE);
 
             let blockX = Math.floor(tileX / (BLOCK_SIZE / TILE_SIZE));
             let blockY = Math.floor(tileY / (BLOCK_SIZE / TILE_SIZE));
@@ -380,14 +360,11 @@ function drawGame() {
                 ctx.drawImage(images[tileType], x * TILE_SIZE, y * TILE_SIZE);
 
                 // Piirrä jalokivet ja monsterit
-            if (tileType === 0) {
-                let jewel = jewelPositions.find(j =>
-                    j.block === blockIndex && j.x === tileX % 5 && j.y === tileY % 5
-                );
-                if (jewel && !collectedJewels[jewelPositions.indexOf(jewel)]) {
-                    let jewelIndex = jewelPositions.indexOf(jewel);
-                    ctx.drawImage(jewelImages[jewelIndex], x * TILE_SIZE, y * TILE_SIZE);
-                }
+                if (tileType === 0) {
+                    let jewel = jewelPositions.find(j => j.block === blockIndex && j.x === tileX % 5 && j.y === tileY % 5);
+                    if (jewel) {
+                        ctx.drawImage(jewelImages[jewelPositions.indexOf(jewel)], x * TILE_SIZE, y * TILE_SIZE);
+                    }
 
                     let monster = monsterPositions.find(m => m.block === blockIndex && m.x === tileX % 5 && m.y === tileY % 5);
                     if (monster) {
@@ -400,24 +377,6 @@ function drawGame() {
 
     // Piirrä pelaaja keskelle ruutua
     ctx.drawImage(playerImage, Math.floor(VISIBLE_SIZE / 2 - TILE_SIZE / 2), Math.floor(VISIBLE_SIZE / 2 - TILE_SIZE / 2));
-
-    ctx.restore();
-
-    // Piirrä kerätyt jalokivet alapalkkiin
-    const jewelSize = TILE_SIZE / 2;
-    const jewelMargin = 5;
-    const jewelBarStartX = (canvas.width - (jewelPositions.length * (jewelSize + jewelMargin) - jewelMargin)) / 2;
-    const jewelBarStartY = canvas.height - JEWEL_BAR_HEIGHT / 2 - jewelSize / 2;
-
-    jewelPositions.forEach((jewel, index) => {
-        if (collectedJewels[index]) {
-            ctx.globalAlpha = 1;
-        } else {
-            ctx.globalAlpha = 0.3;
-        }
-        ctx.drawImage(jewelImages[index], jewelBarStartX + index * (jewelSize + jewelMargin), jewelBarStartY, jewelSize, jewelSize);
-    });
-    ctx.globalAlpha = 1;
 }
 
 // Aloita peli
@@ -466,7 +425,6 @@ function movePlayer(dx, dy) {
             playerX = (playerX + GAME_SIZE) % GAME_SIZE;
             playerY = (playerY + GAME_SIZE) % GAME_SIZE;
 
-            checkJewelCollection();
             drawGame();
 
             if (--steps > 0) {
@@ -480,25 +438,6 @@ function movePlayer(dx, dy) {
     }
 }
 
-function checkJewelCollection() {
-    let blockX = Math.floor(playerX / BLOCK_SIZE);
-    let blockY = Math.floor(playerY / BLOCK_SIZE);
-    let tileX = Math.floor((playerX % BLOCK_SIZE) / TILE_SIZE);
-    let tileY = Math.floor((playerY % BLOCK_SIZE) / TILE_SIZE);
-
-    let blockIndex = blockY * (GAME_SIZE / BLOCK_SIZE) + blockX;
-
-    let jewelIndex = jewelPositions.findIndex(j =>
-        j.block === blockIndex && j.x === tileX && j.y === tileY
-    );
-
-    if (jewelIndex !== -1 && !collectedJewels[jewelIndex]) {
-        collectedJewels[jewelIndex] = true;
-        // Ei poisteta jalokiveä jewelPositions-taulukosta
-    }
-}
-
-
 document.addEventListener('keydown', (event) => {
     switch(event.key) {
         case 'ArrowUp': movePlayer(0, -1); break;
@@ -509,19 +448,8 @@ document.addEventListener('keydown', (event) => {
 });
 
 // Aloita peli
-Promise.all([
-    ...Object.values(images),
-    playerImage,
-    ...jewelImages,
-    ...monsterImages
-].map(img => new Promise(resolve => {
-    if (img.complete) {
-        resolve();
-    } else {
-        img.onload = resolve;
-    }
-})))
-.then(() => {
-    placeObjects();
-    drawGame();
-});
+Promise.all([...Object.values(images), playerImage, ...jewelImages, ...monsterImages].map(img => new Promise(resolve => img.onload = resolve)))
+    .then(() => {
+        placeObjects();
+        drawGame();
+    });

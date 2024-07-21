@@ -11,32 +11,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const VISIBLE_SIZE = VISIBLE_TILES * TILE_SIZE;
 
     const JEWEL_BAR_HEIGHT = 60;
-
-    // Function to resize the canvas based on the screen size
-    function resizeCanvas() {
-        const scale = Math.min(
-            window.innerWidth / VISIBLE_SIZE,
-            window.innerHeight / (VISIBLE_SIZE + 2 * JEWEL_BAR_HEIGHT)
-        );
-        canvas.width = VISIBLE_SIZE * scale;
-        canvas.height = (VISIBLE_SIZE + 2 * JEWEL_BAR_HEIGHT) * scale;
-        canvas.style.width = `${canvas.width}px`;
-        canvas.style.height = `${canvas.height}px`;
-        ctx.setTransform(scale, 0, 0, scale, 0, 0);  // Käytä setTransform skaalauksen sijaan
-    }
-
-    // Initial resize
-    resizeCanvas();
-
-    // Resize canvas when window is resized
-    window.addEventListener('resize', resizeCanvas);
-
-
-
-
-
-    // canvas.width = VISIBLE_SIZE;
-    // canvas.height = VISIBLE_SIZE + 2 * JEWEL_BAR_HEIGHT;
+    canvas.width = VISIBLE_SIZE;
+    canvas.height = VISIBLE_SIZE + 2 * JEWEL_BAR_HEIGHT;
 
 
     const jewelImages = [];
@@ -366,10 +342,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Määrittele kosketusalueet
     const touchAreas = {
-        up: {x: 2, y: 1, width: 3, height: 2},
-        down: {x: 2, y: 7, width: 3, height: 2},
-        left: {x: 0, y: 3, width: 2, height: 3},
-        right: {x: 5, y: 3, width: 2, height: 3}
+        up: {x: 2, y: 0, width: 3, height: 2},
+        down: {x: 2, y: 6, width: 3, height: 2},
+        left: {x: 0, y: 2, width: 2, height: 3},
+        right: {x: 5, y: 2, width: 2, height: 3}
     };
 
     // Lisää kosketustapahtuman kuuntelija
@@ -380,9 +356,8 @@ document.addEventListener('DOMContentLoaded', () => {
         event.preventDefault();
         const touch = event.touches[0];
         const rect = canvas.getBoundingClientRect();
-        const scale = canvas.width / (VISIBLE_TILES * TILE_SIZE);
-        const x = (touch.clientX - rect.left) / scale;
-        const y = (touch.clientY - rect.top) / scale - JEWEL_BAR_HEIGHT;
+        const x = touch.clientX - rect.left;
+        const y = touch.clientY - rect.top;
         const tileX = Math.floor(x / TILE_SIZE);
         const tileY = Math.floor(y / TILE_SIZE);
 
@@ -405,7 +380,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.globalAlpha = 0.1;
         ctx.fillStyle = '#ffffff';
         for (const area of Object.values(touchAreas)) {
-            ctx.fillRect(area.x * TILE_SIZE, area.y * TILE_SIZE + JEWEL_BAR_HEIGHT,
+            ctx.fillRect(area.x * TILE_SIZE, area.y * TILE_SIZE,
                          area.width * TILE_SIZE, area.height * TILE_SIZE);
         }
         ctx.restore();
@@ -414,16 +389,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     function drawGame() {
-         // Tyhjennä koko canvas
-        ctx.clearRect(0, 0, canvas.width / ctx.getTransform().a, canvas.height / ctx.getTransform().a);
+        ctx.fillStyle = '#222';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
 
         // Piirrä yläpalkki
-        ctx.drawImage(jewelBarImage, 0, 0, VISIBLE_SIZE, JEWEL_BAR_HEIGHT);
+        ctx.drawImage(jewelBarImage, 0, 0);
+
+        // Piirrä alapalkki
+        ctx.drawImage(jewelBarImage, 0, canvas.height - JEWEL_BAR_HEIGHT);
 
         // Piirrä pelialue
         ctx.save();
         ctx.translate(0, JEWEL_BAR_HEIGHT);
-
 
         let viewportStartX = Math.floor(playerX / TILE_SIZE) - Math.floor(VISIBLE_TILES / 2);
         let viewportStartY = Math.floor(playerY / TILE_SIZE) - Math.floor(VISIBLE_TILES / 2);
@@ -439,44 +416,45 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 let blockIndex = blockY * (GAME_SIZE / BLOCK_SIZE) + blockX;
 
-                // Piirrä tile
-                let tileType = gameArea[blockIndex][tileIndex];
-                ctx.drawImage(images[tileType], x * TILE_SIZE, y * TILE_SIZE + JEWEL_BAR_HEIGHT, TILE_SIZE, TILE_SIZE);
+                // Tarkista, onko kyseessä aloituslohko
+                if (blockX === 2 && blockY === 2) {
+                    // Laske aloituskuvan oikea sijainti
+                    let startScreenX = x * TILE_SIZE - (tileX % 5) * TILE_SIZE;
+                    let startScreenY = y * TILE_SIZE - (tileY % 5) * TILE_SIZE;
+                    ctx.drawImage(images['start'], startScreenX, startScreenY);
+                } else {
+                    let tileType = gameArea[blockIndex][tileIndex];
+                    ctx.drawImage(images[tileType], x * TILE_SIZE, y * TILE_SIZE);
 
-                // Piirrä jalokivet ja monsterit
+                    // Piirrä jalokivet ja monsterit
                 if (tileType === 0) {
                     let jewel = jewelPositions.find(j =>
                         j.block === blockIndex && j.x === tileX % 5 && j.y === tileY % 5
                     );
                     if (jewel && !collectedJewels[jewelPositions.indexOf(jewel)]) {
                         let jewelIndex = jewelPositions.indexOf(jewel);
-                        ctx.drawImage(jewelImages[jewelIndex], x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                        ctx.drawImage(jewelImages[jewelIndex], x * TILE_SIZE, y * TILE_SIZE);
                     }
 
-                    let monster = monsterPositions.find(m => m.block === blockIndex && m.x === tileX % 5 && m.y === tileY % 5);
-                    if (monster) {
-                        ctx.drawImage(monsterImages[monster.type], x * TILE_SIZE, y * TILE_SIZE + JEWEL_BAR_HEIGHT, TILE_SIZE, TILE_SIZE);
+                        let monster = monsterPositions.find(m => m.block === blockIndex && m.x === tileX % 5 && m.y === tileY % 5);
+                        if (monster) {
+                            ctx.drawImage(monsterImages[monster.type], x * TILE_SIZE, y * TILE_SIZE);
+                        }
                     }
                 }
             }
         }
 
-
         // Piirrä pelaaja keskelle ruutua
-        ctx.drawImage(playerImage, Math.floor(VISIBLE_SIZE / 2 - TILE_SIZE / 2), Math.floor(VISIBLE_SIZE / 2 - TILE_SIZE / 2) + JEWEL_BAR_HEIGHT);
-        // ctx.drawImage(playerImage, Math.floor(VISIBLE_SIZE / 2 - TILE_SIZE / 2), Math.floor(VISIBLE_SIZE / 2 - TILE_SIZE / 2));
+        ctx.drawImage(playerImage, Math.floor(VISIBLE_SIZE / 2 - TILE_SIZE / 2), Math.floor(VISIBLE_SIZE / 2 - TILE_SIZE / 2));
 
         ctx.restore();
-
-        // Piirrä alapalkki
-        ctx.drawImage(jewelBarImage, 0, VISIBLE_SIZE + JEWEL_BAR_HEIGHT, VISIBLE_SIZE, JEWEL_BAR_HEIGHT);
-
 
         // Piirrä kerätyt jalokivet alapalkkiin
         const jewelSize = TILE_SIZE / 2;
         const jewelMargin = 5;
-        const jewelBarStartX = (VISIBLE_SIZE - (jewelPositions.length * (jewelSize + jewelMargin) - jewelMargin)) / 2;
-        const jewelBarStartY = VISIBLE_SIZE + JEWEL_BAR_HEIGHT + (JEWEL_BAR_HEIGHT - jewelSize) / 2;
+        const jewelBarStartX = (canvas.width - (jewelPositions.length * (jewelSize + jewelMargin) - jewelMargin)) / 2;
+        const jewelBarStartY = canvas.height - JEWEL_BAR_HEIGHT / 2 - jewelSize / 2;
 
         jewelPositions.forEach((jewel, index) => {
             if (collectedJewels[index]) {
@@ -487,7 +465,6 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.drawImage(jewelImages[index], jewelBarStartX + index * (jewelSize + jewelMargin), jewelBarStartY, jewelSize, jewelSize);
         });
         ctx.globalAlpha = 1;
-
         drawTouchAreas();
     }
 
@@ -538,7 +515,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 playerY = (playerY + GAME_SIZE) % GAME_SIZE;
 
                 checkJewelCollection();
-                drawGame();  // Piirrä koko peli uudelleen joka askeleella
+                drawGame();
 
                 if (--steps > 0) {
                     requestAnimationFrame(animate);

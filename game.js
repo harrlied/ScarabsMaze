@@ -10,14 +10,20 @@ for (let i = 1; i <= 12; i++) {
 
 
 
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
+// const canvas = document.getElementById('gameCanvas');
+// const ctx = canvas.getContext('2d');
 
 const GAME_SIZE = 2000;
 const BLOCK_SIZE = 500;
 const TILE_SIZE = 100;
 const VISIBLE_TILES = 7;
 const VISIBLE_SIZE = VISIBLE_TILES * TILE_SIZE;
+
+const canvas = document.createElement('canvas');
+canvas.width = VISIBLE_SIZE;
+canvas.height = VISIBLE_SIZE;
+document.getElementById('gameArea').appendChild(canvas);
+const ctx = canvas.getContext('2d');
 
 
 const JEWEL_BAR_HEIGHT = 60;

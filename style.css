@@ -13,8 +13,8 @@ body {
     background-image: url('images/background.png');
     background-size: cover;
     background-position: center;
-    width: 700px;
-    height: 700px;
+    width: 720px;
+    height: 840px;
 }
 
 #gameArea {
@@ -22,8 +22,8 @@ body {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: 700px;
-    height: 700px;
+    width: 720px;
+    height: 840px;
 }
 
 #gameContainer {

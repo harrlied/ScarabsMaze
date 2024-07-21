@@ -12,8 +12,20 @@ body {
     border: 1px solid #000;
     background-image: url('images/background.png');
     background-size: cover;
-    background-position: -4px -4px;
     background-position: center;
     width: 900px;
     height: 900px;
+}
+
+#gameContainer {
+    width: 900px;
+    margin: 0 auto;
+}
+
+#textArea {
+    width: 100%;
+    padding: 10px;
+    box-sizing: border-box;
+    background-color: #f0f0f0;
+    margin-top: 10px;
 }

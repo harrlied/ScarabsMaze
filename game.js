@@ -386,56 +386,33 @@ Promise.all([...Object.values(images), playerImage, ...jewelImages, ...monsterIm
         drawGame();
     });
 
-function canMove(dx, dy) {
-    let newX = playerX + dx * TILE_SIZE;
-    let newY = playerY + dy * TILE_SIZE;
-
-    // Varmistetaan, että uusi sijainti on pelialueen sisällä
-    newX = (newX + GAME_SIZE) % GAME_SIZE;
-    newY = (newY + GAME_SIZE) % GAME_SIZE;
-
-    let blockX = Math.floor(newX / BLOCK_SIZE);
-    let blockY = Math.floor(newY / BLOCK_SIZE);
-    let tileX = Math.floor((newX % BLOCK_SIZE) / TILE_SIZE);
-    let tileY = Math.floor((newY % BLOCK_SIZE) / TILE_SIZE);
-
-    let blockIndex = blockY * (GAME_SIZE / BLOCK_SIZE) + blockX;
-    let tileIndex = tileY * 5 + tileX;
-
-    // Tarkistetaan, onko uusi sijainti tyhjä (arvo 0)
-    return gameArea[blockIndex][tileIndex] === 0;
-}
-
 function movePlayer(dx, dy) {
     if (isMoving) return;
+    isMoving = true;
 
-    if (canMove(dx, dy)) {
-        isMoving = true;
+    let targetX = playerX + dx * TILE_SIZE;
+    let targetY = playerY + dy * TILE_SIZE;
+    let steps = 10;
+    let stepX = dx * TILE_SIZE / steps;
+    let stepY = dy * TILE_SIZE / steps;
 
-        let targetX = playerX + dx * TILE_SIZE;
-        let targetY = playerY + dy * TILE_SIZE;
-        let steps = 10;
-        let stepX = dx * TILE_SIZE / steps;
-        let stepY = dy * TILE_SIZE / steps;
+    function animate() {
+        playerX += stepX;
+        playerY += stepY;
 
-        function animate() {
-            playerX += stepX;
-            playerY += stepY;
+        playerX = (playerX + GAME_SIZE) % GAME_SIZE;
+        playerY = (playerY + GAME_SIZE) % GAME_SIZE;
 
-            playerX = (playerX + GAME_SIZE) % GAME_SIZE;
-            playerY = (playerY + GAME_SIZE) % GAME_SIZE;
+        drawGame();
 
-            drawGame();
-
-            if (--steps > 0) {
-                requestAnimationFrame(animate);
-            } else {
-                isMoving = false;
-            }
+        if (--steps > 0) {
+            requestAnimationFrame(animate);
+        } else {
+            isMoving = false;
         }
-
-        animate();
     }
+
+    animate();
 }
 
 document.addEventListener('keydown', (event) => {

@@ -5,30 +5,37 @@ for (let i = 1; i <= 12; i++) {
     jewelImages.push(img);
 }
 
+const pathTiles = [];
+for (let i = 1; i <= 10; i++) {
+    const img = new Image();
+    img.src = `images/tile_${i.toString().padStart(3, '0')}.png`;
+    img.onload = () => console.log(`Tile ${i} loaded`);
+    img.onerror = () => console.error(`Failed to load tile ${i}`);
+    pathTiles.push(img);
+}
+
+const flyingMonsterImage = new Image();
+flyingMonsterImage.src = 'images/scarab_wing.png';
+
 const GAME_SIZE = 2000;
 const BLOCK_SIZE = 500;
 const TILE_SIZE = 100;
 const VISIBLE_TILES = 7;
 const VISIBLE_SIZE = VISIBLE_TILES * TILE_SIZE;
-
 const JEWEL_BAR_HEIGHT = 60;
 const canvas = document.createElement('canvas');
 canvas.height = VISIBLE_SIZE + 2 * JEWEL_BAR_HEIGHT;
 canvas.width = VISIBLE_SIZE;
 
-
 document.getElementById('gameArea').appendChild(canvas);
 const ctx = canvas.getContext('2d');
-
-
 let gameArea = [];
+let gameOver = false;
 
 let playerX = GAME_SIZE / 2 + TILE_SIZE * 2; // Keskimmäisen lohkon keskikohta
 let playerY = GAME_SIZE / 2 + TILE_SIZE * 2;
 let isMoving = false;
-
 let collectedJewels = new Array(jewelImages.length).fill(false);
-
 let statusText = '';
 
 const monsterAreas = [
@@ -40,9 +47,12 @@ const monsterAreas = [
     { x: 5, y: 0, width: 10, height: 20 }     // Keskiosa (pysty)
 ];
 
-console.log("Monster areas:", monsterAreas);
-console.log("GAME_SIZE:", GAME_SIZE);
-console.log("gameArea length:", gameArea.length);
+let flyingMonster = {
+    x: 0,
+    y: 0,
+    size: 200,
+    speed: 2
+};
 
 
 // Tetris-palikoiden muodot (7 erilaista)
@@ -213,6 +223,49 @@ for (let y = 0; y < GAME_SIZE / BLOCK_SIZE; y++) {
     }
 }
 
+function placeFlyingMonster() {
+    const corners = [
+        {x: 0, y: 0},
+        {x: GAME_SIZE - flyingMonster.size, y: 0},
+        {x: 0, y: GAME_SIZE - flyingMonster.size},
+        {x: GAME_SIZE - flyingMonster.size, y: GAME_SIZE - flyingMonster.size}
+    ];
+    const randomCorner = corners[Math.floor(Math.random() * corners.length)];
+    flyingMonster.x = randomCorner.x;
+    flyingMonster.y = randomCorner.y;
+}
+
+function moveFlyingMonster() {
+    const dx = playerX - (flyingMonster.x + flyingMonster.size / 2);
+    const dy = playerY - (flyingMonster.y + flyingMonster.size / 2);
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    if (distance > 0) {
+        flyingMonster.x += (dx / distance) * flyingMonster.speed;
+        flyingMonster.y += (dy / distance) * flyingMonster.speed;
+    }
+
+    // Rajoita lentävä monsteri pelialueelle
+    flyingMonster.x = Math.max(0, Math.min(GAME_SIZE - flyingMonster.size, flyingMonster.x));
+    flyingMonster.y = Math.max(0, Math.min(GAME_SIZE - flyingMonster.size, flyingMonster.y));
+
+    // Tarkista törmäys pelaajaan
+    const monsterCenterX = flyingMonster.x + flyingMonster.size / 2;
+    const monsterCenterY = flyingMonster.y + flyingMonster.size / 2;
+    const playerCenterX = playerX + TILE_SIZE / 2;
+    const playerCenterY = playerY + TILE_SIZE / 2;
+    const collisionDistance = Math.sqrt(
+        Math.pow(monsterCenterX - playerCenterX, 2) +
+        Math.pow(monsterCenterY - playerCenterY, 2)
+    );
+
+    if (collisionDistance < 100) {
+        playerHealth = 0;
+        updateGameStatus();
+    }
+}
+
+
 function randomPositionInArea(area) {
     let x, y;
     let attempts = 0;
@@ -247,8 +300,14 @@ function createMonster(x, y, type) {
         awake: false,
         moving: false,
         moveTimer: null,
-        dead: false
+        dead: false,
+        canBeKilled: true,  // Ensimmäinen voidaan aina tappaa
+        steps: 20
     };
+}
+
+function speedUpMonster(monster) {
+    monster.steps = 10;
 }
 
 function createBlock() {
@@ -259,18 +318,17 @@ function createBlock() {
         piece = rotatePiece(piece);
     }
 
-    // console.log("Creating block with piece:", piece);
-
-    // Aloituskohta on aina (0,0)
     for (let y = 0; y < 5; y++) {
         for (let x = 0; x < 5; x++) {
+            let tileIndex = y * 5 + x;
             if (piece[y][x]) {
-                let index = y * 5 + x;
-                block[index] = Math.floor(Math.random() * 17) + 1;
+                block[tileIndex] = Math.floor(Math.random() * 17) + 1;
+            } else {
+                // Käytä negatiivista arvoa polkulaatoille
+                block[tileIndex] = -Math.floor(Math.random() * pathTiles.length) - 1;
             }
         }
     }
-
     // console.log("Created block:", block);
     return block;
 }
@@ -330,6 +388,7 @@ function moveMonster(monster) {
     handleCollision(monster);
     monster.moving = false;
     scheduleMonsterMove(monster);
+
     return;
     }
 
@@ -339,7 +398,7 @@ function moveMonster(monster) {
 
     // console.log(`Monster ${monster.type} at (${monster.x}, ${monster.y}) chose to move to (${newX}, ${newY})`);
 
-    animateMonsterMove(monster, {x: newX, y: newY});
+    animateMonsterMove(monster, {x: newX, y: newY}, monster.steps);
 }
 
 function checkCollision() {
@@ -352,9 +411,18 @@ function checkCollision() {
             let monsterTileY = Math.floor(monster.y);
 
             if (playerTileX === monsterTileX && playerTileY === monsterTileY) {
-                console.log("Pelaaja törmäsi monsteriin!");
-                monster.dead = true;
-                // Tässä vaiheessa emme vielä lopeta peliä
+                if (monster.canBeKilled) {
+                    monster.dead = true;
+                    // Etsi toinen samanvärinen monsteri ja nopeuta sitä
+                    let sameTypeMonster = monsterPositions.find(m => m.type === monster.type && !m.dead);
+                    if (sameTypeMonster) {
+                        speedUpMonster(sameTypeMonster);
+                        sameTypeMonster.canBeKilled = true;  // Toinen monsteri voidaan nyt tappaa
+                    }
+                } else {
+                    playerHealth--;
+                    updateGameStatus();
+                }
             }
         }
     });
@@ -382,20 +450,50 @@ function updateGameStatus() {
 
 
 
-function isValidMonsterPosition(monster, newX, newY) {
-    let globalX = (monster.block % 4) * 5 + newX;
-    let globalY = Math.floor(monster.block / 4) * 5 + newY;
+function isValidMonsterPosition(x, y) {
+    console.log(`Checking position (${x}, ${y})`);
 
-    globalX = (globalX + GAME_SIZE / TILE_SIZE) % (GAME_SIZE / TILE_SIZE);
-    globalY = (globalY + GAME_SIZE / TILE_SIZE) % (GAME_SIZE / TILE_SIZE);
+    // Laske lohkon indeksi ja lohkon sisäinen sijainti
+    let blockX = Math.floor(x / 5);
+    let blockY = Math.floor(y / 5);
+    let tileX = x % 5;
+    let tileY = y % 5;
 
-    let newBlock = Math.floor(globalY / 5) * 4 + Math.floor(globalX / 5);
-    let tileX = globalX % 5;
-    let tileY = globalY % 5;
+    let blockIndex = blockY * 4 + blockX;  // 4 lohkoa per rivi
+    let tileIndex = tileY * 5 + tileX;
 
-    if (gameArea[newBlock][tileY * 5 + tileX] !== 0) return false;
-    if (monsterPositions.some(m => m !== monster && m.block === newBlock && Math.floor(m.x) === tileX && Math.floor(m.y) === tileY)) return false;
+    if (blockIndex < 0 || blockIndex >= gameArea.length || !gameArea[blockIndex]) {
+        // console.log(`Invalid block index: ${blockIndex}`);
+        return false;
+    }
 
+    if (gameArea[blockIndex][tileIndex] > 0) {
+        // console.log(`Position (${x}, ${y}) is not empty in gameArea`);
+        return false;
+    }
+
+    // Tarkista, ettei paikassa ole jo jalokiveä tai monsteria
+    if (jewelPositions.some(jewel => jewel.block === blockIndex && jewel.x === tileX && jewel.y === tileY)) {
+        // console.log(`Position (${x}, ${y}) contains a jewel`);
+        return false;
+    }
+
+    if (monsterPositions.some(monster => monster.x === x && monster.y === y)) {
+        // console.log(`Position (${x}, ${y}) contains another monster`);
+        return false;
+    }
+
+    // Tarkista, ettei monsteri ole pelaajan vieressä tai samassa ruudussa
+    const playerTileX = Math.floor(playerX / TILE_SIZE);
+    const playerTileY = Math.floor(playerY / TILE_SIZE);
+    if (Math.abs(x - playerTileX) <= 1 && Math.abs(y - playerTileY) <= 1) {
+        console.log(`Position (${x}, ${y}) is too close to the player`);
+        return false;
+    }
+
+
+
+    // console.log(`Position (${x}, ${y}) is valid`);
     return true;
 }
 
@@ -423,8 +521,7 @@ function getPossibleMoves(monster) {
     });
 }
 
-function animateMonsterMove(monster, newPos) {
-    const steps = 10;
+function animateMonsterMove(monster, newPos, steps) {
     const startX = monster.x;
     const startY = monster.y;
     const startBlock = monster.block;
@@ -437,42 +534,7 @@ function animateMonsterMove(monster, newPos) {
         currentStep++;
         const progress = currentStep / steps;
 
-        let newX, newY, currentBlock;
-
-        if (startBlock !== endBlock) {
-            // Lohkon vaihto
-            let dx = (endX - startX + 5) % 5;
-            let dy = (endY - startY + 5) % 5;
-
-            // Jos dx tai dy on suurempi kuin 2.5, liikutaan vastakkaiseen suuntaan
-            if (dx > 2.5) dx -= 5;
-            if (dy > 2.5) dy -= 5;
-
-            newX = startX + dx * progress;
-            newY = startY + dy * progress;
-
-            // Varmista, että koordinaatit pysyvät välillä [0, 5)
-            newX = (newX + 5) % 5;
-            newY = (newY + 5) % 5;
-
-            // Määritä nykyinen lohko liikkeen puolivälissä
-            if (progress < 0.5) {
-                currentBlock = startBlock;
-            } else {
-                currentBlock = endBlock;
-            }
-        } else {
-            // Sama lohko
-            newX = startX + (endX - startX) * progress;
-            newY = startY + (endY - startY) * progress;
-            currentBlock = startBlock;
-        }
-
-        monster.x = newX;
-        monster.y = newY;
-        monster.block = currentBlock;
-
-        drawGame();
+        // ... (muu koodi)
 
         if (currentStep < steps) {
             requestAnimationFrame(animate);
@@ -526,13 +588,13 @@ function updateMonsterBlock(monster) {
 
 function placeObjects() {
     // console.log("gameArea contents:");
-    // for (let y = 0; y < GAME_SIZE; y++) {
-    //     let row = "";
-    //     for (let x = 0; x < GAME_SIZE; x++) {
-    //         row += gameArea[y * GAME_SIZE + x] === 0 ? "." : "#";
-    //     }
-    //     console.log(row);
-    // }
+    for (let y = 0; y < GAME_SIZE; y++) {
+        let row = "";
+        for (let x = 0; x < GAME_SIZE; x++) {
+            row += gameArea[y * GAME_SIZE + x] === 0 ? "." : "#";
+        }
+        // console.log(row);
+    }
 
     jewelPositions = [];
     monsterPositions = [];
@@ -577,7 +639,7 @@ function placeObjects() {
             console.error(`Failed to place all monsters of type ${i}. Placed ${monstersPlaced}`);
         }
     }
-   monsterPositions.forEach(monster => wakeUpMonster(monster));
+    monsterPositions.forEach(monster => wakeUpMonster(monster));
 }
 
 
@@ -593,12 +655,17 @@ function isValidMonsterPosition(x, y) {
     let blockIndex = blockY * 4 + blockX;  // 4 lohkoa per rivi
     let tileIndex = tileY * 5 + tileX;
 
+    // console.log(`Block index: ${blockIndex}, Tile index: ${tileIndex}`);
+
     if (blockIndex < 0 || blockIndex >= gameArea.length || !gameArea[blockIndex]) {
         // console.log(`Invalid block index: ${blockIndex}`);
         return false;
     }
 
-    if (gameArea[blockIndex][tileIndex] !== 0) {
+    let tileType = gameArea[blockIndex][tileIndex];
+    // console.log(`Tile type at (${x}, ${y}): ${tileType}`);
+
+    if (tileType > 0) {
         // console.log(`Position (${x}, ${y}) is not empty in gameArea`);
         return false;
     }
@@ -609,7 +676,7 @@ function isValidMonsterPosition(x, y) {
         return false;
     }
 
-    if (monsterPositions.some(monster => monster.block === blockIndex && monster.x === tileX && monster.y === tileY)) {
+    if (monsterPositions.some(monster => monster.x === x && monster.y === y)) {
         // console.log(`Position (${x}, ${y}) contains another monster`);
         return false;
     }
@@ -646,9 +713,8 @@ function isValidPosition(x, y) {
         return false;
     }
 
-    // Tarkista, onko ruudussa muuri
-    if (!gameArea[blockIndex] || gameArea[blockIndex][tileIndex] !== 0) {
-        // console.log("Positio hylätty: muuri tai invalid tileIndex");
+    // Tarkista, onko ruudussa muuri tai polku
+    if (!gameArea[blockIndex] || gameArea[blockIndex][tileIndex] > 0) {
         return false;
     }
 
@@ -720,17 +786,22 @@ function drawGame() {
                 ctx.drawImage(images['start'], startScreenX, startScreenY);
             } else {
                 let tileType = gameArea[blockIndex][tileIndex];
-                ctx.drawImage(images[tileType], x * TILE_SIZE, y * TILE_SIZE);
+                // console.log(`Drawing tile at (${x},${y}): type ${tileType}`);
+                if (tileType > 0) {
+                    ctx.drawImage(images[tileType], x * TILE_SIZE, y * TILE_SIZE);
+                } else if (tileType < 0) {
+                    // Piirrä satunnainen polkulaatta
+                    ctx.drawImage(pathTiles[-tileType - 1], x * TILE_SIZE, y * TILE_SIZE);
+                }
+
 
                 // Piirrä jalokivet
-                if (tileType === 0) {
-                    let jewel = jewelPositions.find(j =>
-                        j.block === blockIndex && j.x === tileX % 5 && j.y === tileY % 5
-                    );
-                    if (jewel && !collectedJewels[jewelPositions.indexOf(jewel)]) {
-                        let jewelIndex = jewelPositions.indexOf(jewel);
-                        ctx.drawImage(jewelImages[jewelIndex], x * TILE_SIZE, y * TILE_SIZE);
-                    }
+                let jewel = jewelPositions.find(j =>
+                    j.block === blockIndex && j.x === tileX % 5 && j.y === tileY % 5
+                );
+                if (jewel && !collectedJewels[jewelPositions.indexOf(jewel)]) {
+                    let jewelIndex = jewelPositions.indexOf(jewel);
+                    ctx.drawImage(jewelImages[jewelIndex], x * TILE_SIZE, y * TILE_SIZE);
                 }
             }
         }
@@ -747,8 +818,8 @@ function drawGame() {
         let monsterScreenX = (monster.x - viewportStartX) * TILE_SIZE;
         let monsterScreenY = (monster.y - viewportStartY) * TILE_SIZE;
 
-        if (monsterScreenX >= -TILE_SIZE && monsterScreenX < VISIBLE_SIZE &&
-            monsterScreenY >= -TILE_SIZE && monsterScreenY < VISIBLE_SIZE) {
+        if (monsterScreenX >= -TILE_SIZE && monsterScreenX < VISIBLE_SIZE + TILE_SIZE &&
+            monsterScreenY >= -TILE_SIZE && monsterScreenY < VISIBLE_SIZE + TILE_SIZE) {
             if (monster.dead) {
                 ctx.drawImage(deadMonsterImage, Math.round(monsterScreenX), Math.round(monsterScreenY));
             } else {
@@ -762,6 +833,12 @@ function drawGame() {
     });
 
     ctx.restore();
+
+    // Piirrä lentävä monsteri
+    const monsterScreenX = flyingMonster.x - viewportStartX * TILE_SIZE;
+    const monsterScreenY = flyingMonster.y - viewportStartY * TILE_SIZE;
+    ctx.drawImage(flyingMonsterImage, monsterScreenX, monsterScreenY, flyingMonster.size, flyingMonster.size);
+
 
 
     // Piirrä pelaaja keskelle ruutua
@@ -837,8 +914,8 @@ function canMove(dx, dy) {
     let blockIndex = blockY * (GAME_SIZE / BLOCK_SIZE) + blockX;
     let tileIndex = tileY * 5 + tileX;
 
-    // Tarkistetaan, onko uusi sijainti tyhjä (arvo 0) tai kuollut monsteri
-    return gameArea[blockIndex][tileIndex] === 0 ||
+    // Tarkistetaan, onko uusi sijainti käveltävä (arvo 0 tai negatiivinen) tai kuollut monsteri
+    return gameArea[blockIndex][tileIndex] <= 0 ||
            monsterPositions.some(m => m.dead && m.x === tileX && m.y === tileY);
 }
 
@@ -892,9 +969,17 @@ function checkJewelCollection() {
         collectedJewels[jewelIndex] = true;
         if (collectedJewels.filter(Boolean).length === 12) {
             updateGameStatus(); // Tarkista voitto
+            endGame("You WON! You collected all 12 jewels!");
         }
     }
 }
+
+function endGame(message) {
+    statusText = message;
+    // Pysäytä peli tässä, esim. asettamalla gameOver-lippu
+    gameOver = true;
+}
+
 
 
 document.addEventListener('keydown', (event) => {
@@ -906,12 +991,27 @@ document.addEventListener('keydown', (event) => {
     }
 });
 
+
+function gameLoop() {
+    if (!gameOver) {
+        moveFlyingMonster();
+        drawGame();
+        requestAnimationFrame(gameLoop);
+    }
+}
+
+// Pelin alustus
+placeObjects();
+placeFlyingMonster();
+gameLoop();
+
 Promise.all([
     ...Object.values(images),
-    ...playerImages,  // Muutettu playerImage -> playerImages
+    ...playerImages,
     ...jewelImages,
     ...monsterImages,
-    deadMonsterImage  // Lisätään myös kuolleen monsterin kuva
+    deadMonsterImage,
+    ...pathTiles
 ].map(img => new Promise(resolve => {
     if (img.complete) {
         resolve();
@@ -920,6 +1020,10 @@ Promise.all([
     }
 })))
 .then(() => {
+    console.log("All images loaded");
     placeObjects();
     drawGame();
+})
+.catch(error => {
+    console.error("Error loading images:", error);
 });

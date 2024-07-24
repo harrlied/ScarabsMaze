@@ -39,6 +39,11 @@ let isMoving = false;
 let collectedJewels = new Array(jewelImages.length).fill(false);
 let statusText = '';
 
+let playerSpeed = 0;
+let speedBoostTimer = null;
+let gameTime = 21; // 30 sekuntia alkuaikaa
+let gameTimer = null;
+
 const monsterAreas = [
     { x: 0, y: 0, width: 20, height: 10 },    // Yläosa
     { x: 0, y: 10, width: 20, height: 10 },   // Alaosa
@@ -185,6 +190,10 @@ deadMonsterImage.src = 'images/scarab_dead.png';
 images['start'] = new Image();
 images['start'].src = 'images/start_screen.png';
 
+const playerSpeedImage = new Image();
+playerSpeedImage.src = 'images/turtle_speed.png';
+let isSpeedBoosted = false;
+
 let playerHealth = 2; // 2 = täysin elossa, 1 = puolikuollut, 0 = kuollut
 const playerImages = [
     new Image(), // turtle_03.png (kuollut)
@@ -216,6 +225,18 @@ for (let y = 0; y < GAME_SIZE / BLOCK_SIZE; y++) {
         }
     }
 }
+
+function startGameTimer() {
+    gameTimer = setInterval(() => {
+        gameTime--;
+        if (gameTime <= 0) {
+            endGame("Time's up! GAME OVER!");
+        }
+    }, 1000);
+}
+
+
+
 
 function placeFlyingMonster() {
     const corners = [
@@ -375,7 +396,32 @@ function moveMonster(monster) {
         return;
     }
 
-    let chosenMove = possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
+    // Laske etäisyys pelaajaan
+    let distanceToPlayer = calculateDistance(monster.x, monster.y, playerX / TILE_SIZE, playerY / TILE_SIZE);
+
+    // Tarkista onko tämä lähin monsteri
+    let isClosest = monsterPositions.every(otherMonster =>
+        otherMonster === monster ||
+        otherMonster.dead ||
+        calculateDistance(otherMonster.x, otherMonster.y, playerX / TILE_SIZE, playerY / TILE_SIZE) > distanceToPlayer
+    );
+
+    // Säädä nopeutta sen mukaan, onko monsteri lähin
+    monster.steps = isClosest ? 10 : 20;
+
+    let chosenMove;
+    if (isClosest) {
+        // Jos tämä on lähin monsteri, valitse liike joka vie lähemmäs pelaajaa
+        chosenMove = possibleMoves.reduce((best, move) => {
+            let newDistance = calculateDistance(monster.x + move.x, monster.y + move.y, playerX / TILE_SIZE, playerY / TILE_SIZE);
+            return newDistance < best.distance ? {move, distance: newDistance} : best;
+        }, {move: possibleMoves[0], distance: Infinity}).move;
+    } else {
+        // Muuten valitse satunnainen liike
+        chosenMove = possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
+    }
+
+
     let newX = monster.x + chosenMove.x;
     let newY = monster.y + chosenMove.y;
 
@@ -652,11 +698,27 @@ function drawGame() {
     ctx.fillStyle = '#222';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+
+
     // Piirrä yläpalkki
     ctx.drawImage(jewelBarImage, 0, 0);
 
     // Piirrä alapalkki
     ctx.drawImage(jewelBarImage, 0, canvas.height - JEWEL_BAR_HEIGHT);
+
+    ctx.fillStyle = 'black';
+    ctx.font = '24px Arial';
+    ctx.textAlign = 'right';
+    ctx.fillText(`Time: ${Math.max(0, Math.floor(gameTime))}s`, canvas.width - 10, JEWEL_BAR_HEIGHT / 2 + 8);
+
+    // Piirrä statustext yläpalkkiin
+    if (statusText) {
+        ctx.fillStyle = 'white';
+        ctx.font = '24px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(statusText, canvas.width / 2, JEWEL_BAR_HEIGHT / 2 + 8);
+    }
+
 
     // Piirrä pelialue
     ctx.save();
@@ -757,7 +819,8 @@ function drawGame() {
     // Piirrä pelaaja keskelle ruutua
     // ctx.drawImage(playerImage, Math.floor(VISIBLE_SIZE / 2 - TILE_SIZE / 2), Math.floor(VISIBLE_SIZE / 2 - TILE_SIZE / 2));
     // Piirrä pelaaja
-    ctx.drawImage(playerImages[playerHealth],
+    const playerImageToDraw = isSpeedBoosted ? playerSpeedImage : playerImages[playerHealth];
+    ctx.drawImage(playerImageToDraw,
         Math.floor(VISIBLE_SIZE / 2 - TILE_SIZE / 2),
         Math.floor(VISIBLE_SIZE / 2 - TILE_SIZE / 2));
     ctx.restore();
@@ -777,13 +840,9 @@ function drawGame() {
         ctx.drawImage(jewelImages[index], jewelBarStartX + index * (jewelSize + jewelMargin), jewelBarStartY, jewelSize, jewelSize);
     });
 
-    // Piirrä statustext yläpalkkiin
-    if (statusText) {
-        ctx.fillStyle = 'white';
-        ctx.font = '24px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText(statusText, canvas.width / 2, JEWEL_BAR_HEIGHT / 2 + 8);
-    }
+
+
+
 
     ctx.globalAlpha = 1;
 }
@@ -817,9 +876,9 @@ function movePlayer(dx, dy) {
 
         let targetX = playerX + dx * TILE_SIZE;
         let targetY = playerY + dy * TILE_SIZE;
-        let steps = 5;
-        let stepX = dx * TILE_SIZE / steps;
-        let stepY = dy * TILE_SIZE / steps;
+        let steps = 5 - playerSpeed;
+        let stepX = dx * TILE_SIZE / steps
+        let stepY = dy * TILE_SIZE / steps
 
         function animate() {
             playerX += stepX;
@@ -843,6 +902,18 @@ function movePlayer(dx, dy) {
     }
 }
 
+function activateSpeedBoost() {
+    playerSpeed = 1; // 25% nopeampi
+    isSpeedBoosted = true;
+    if (speedBoostTimer) clearTimeout(speedBoostTimer);
+    speedBoostTimer = setTimeout(() => {
+        playerSpeed = 0;
+        isSpeedBoosted = false;
+        speedBoostTimer = null;
+    }, 5000); // 5 sekuntia
+}
+
+
 function checkJewelCollection() {
     let blockX = Math.floor(playerX / BLOCK_SIZE);
     let blockY = Math.floor(playerY / BLOCK_SIZE);
@@ -857,6 +928,8 @@ function checkJewelCollection() {
 
     if (jewelIndex !== -1 && !collectedJewels[jewelIndex]) {
         collectedJewels[jewelIndex] = true;
+        gameTime += 7; // Lisää 10 sekuntia aikaa
+        activateSpeedBoost();
         if (collectedJewels.filter(Boolean).length === 12) {
             updateGameStatus(); // Tarkista voitto
             endGame("You WON! You collected all 12 jewels!");
@@ -864,10 +937,16 @@ function checkJewelCollection() {
     }
 }
 
+function calculateDistance(x1, y1, x2, y2) {
+    return Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+}
+
+
 function endGame(message) {
     statusText = message;
     // Pysäytä peli tässä, esim. asettamalla gameOver-lippu
     gameOver = true;
+    clearInterval(gameTimer);
 }
 
 document.addEventListener('keydown', (event) => {
@@ -887,9 +966,12 @@ function gameLoop() {
     }
 }
 
-// Pelin alustus
-placeFlyingMonster();
-gameLoop();
+function initGame() {
+    placeFlyingMonster();
+    placeObjects();
+    startGameTimer();
+    gameLoop();
+}
 
 Promise.all([
     ...Object.values(images),
@@ -897,7 +979,8 @@ Promise.all([
     ...jewelImages,
     ...monsterImages,
     deadMonsterImage,
-    ...pathTiles
+    ...pathTiles,
+    playerSpeedImage
 ].map(img => new Promise(resolve => {
     if (img.complete) {
         resolve();
@@ -907,8 +990,7 @@ Promise.all([
 })))
 .then(() => {
     console.log("All images loaded");
-    placeObjects();
-    drawGame();
+    initGame();
 })
 .catch(error => {
     console.error("Error loading images:", error);
